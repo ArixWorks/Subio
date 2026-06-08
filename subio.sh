@@ -1,0 +1,260 @@
+#!/bin/bash
+# SubIO Tunnel Management Script
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+SUBIO_DIR="/opt/subio"
+CONFIG_FILE="/etc/subio/subio.json"
+SERVICE_NAME="subio.service"
+
+if [[ $EUID -ne 0 ]]; then
+   echo -e "${RED}This script must be run as root${NC}" 
+   exit 1
+fi
+
+function show_header() {
+    clear
+    echo -e "${CYAN}╔────────────────────────────────────────────────╗${NC}"
+    echo -e "${CYAN}│   SubIO Tunnel Management Script               │${NC}"
+    echo -e "${CYAN}│   0. Exit                                      │${NC}"
+    echo -e "${CYAN}│────────────────────────────────────────────────│${NC}"
+    echo -e "${CYAN}│   1. Install / Initial Setup                   │${NC}"
+    echo -e "${CYAN}│   2. Update SubIO                              │${NC}"
+    echo -e "${CYAN}│   3. Uninstall SubIO                           │${NC}"
+    echo -e "${CYAN}│────────────────────────────────────────────────│${NC}"
+    echo -e "${CYAN}│   4. Node Management (Add/Remove Servers)      │${NC}"
+    echo -e "${CYAN}│   5. Key Management (Show My Key / Add Key)    │${NC}"
+    echo -e "${CYAN}│   6. View Current Configuration                │${NC}"
+    echo -e "${CYAN}│────────────────────────────────────────────────│${NC}"
+    echo -e "${CYAN}│   7. Start SubIO                               │${NC}"
+    echo -e "${CYAN}│   8. Stop SubIO                                │${NC}"
+    echo -e "${CYAN}│   9. Restart SubIO                             │${NC}"
+    echo -e "${CYAN}│  10. Check Status (Health Diagnostics)         │${NC}"
+    echo -e "${CYAN}│  11. View Logs (SubIO & Connection Logs)       │${NC}"
+    echo -e "${CYAN}│────────────────────────────────────────────────│${NC}"
+    echo -e "${CYAN}│  12. Speed Test & Connection Check             │${NC}"
+    echo -e "${CYAN}╚────────────────────────────────────────────────╝${NC}"
+    echo ""
+    show_status_footer
+    echo ""
+}
+
+function show_status_footer() {
+    local service_status="Stopped"
+    local autostart="No"
+    
+    if systemctl is-active --quiet $SERVICE_NAME; then
+        service_status="${GREEN}Running${NC}"
+    else
+        service_status="${RED}Stopped${NC}"
+    fi
+
+    if systemctl is-enabled --quiet $SERVICE_NAME 2>/dev/null; then
+        autostart="${GREEN}Yes${NC}"
+    else
+        autostart="${RED}No${NC}"
+    fi
+
+    # System Monitor
+    local cpu_usage=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1}' || echo "0")
+    local ram_usage=$(free -m | awk 'NR==2{printf "%.1f%%", $3*100/$2}' || echo "0%")
+    
+    # Network Traffic
+    local iface=$(ip route 2>/dev/null | awk '/default/ {print $5}' | head -n1)
+    if [ -n "$iface" ] && [ -d "/sys/class/net/$iface/statistics" ]; then
+        local rx1=$(cat /sys/class/net/$iface/statistics/rx_bytes)
+        local tx1=$(cat /sys/class/net/$iface/statistics/tx_bytes)
+        sleep 0.5
+        local rx2=$(cat /sys/class/net/$iface/statistics/rx_bytes)
+        local tx2=$(cat /sys/class/net/$iface/statistics/tx_bytes)
+        local rx_kbps=$(echo "scale=1; ($rx2 - $rx1) / 1024 / 0.5" | bc 2>/dev/null || echo "0")
+        local tx_kbps=$(echo "scale=1; ($tx2 - $tx1) / 1024 / 0.5" | bc 2>/dev/null || echo "0")
+    else
+        local rx_kbps="0"
+        local tx_kbps="0"
+    fi
+
+    echo -e "Panel state: ${service_status} | Autostart: ${autostart}"
+    echo -e "CPU: ${YELLOW}${cpu_usage}%${NC} | RAM: ${YELLOW}${ram_usage}${NC} | Net: DL ${YELLOW}${rx_kbps} KB/s${NC} / UL ${YELLOW}${tx_kbps} KB/s${NC}"
+}
+
+function show_spinner() {
+    local pid=$1
+    local delay=0.1
+    local spinstr='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+    while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
+        local temp=${spinstr#?}
+        printf " [%c]  " "$spinstr"
+        local spinstr=$temp${spinstr%"$temp"}
+        sleep $delay
+        printf "\b\b\b\b\b\b"
+    done
+    printf "    \b\b\b\b"
+}
+
+function check_status() {
+    echo -e "${YELLOW}Running Health Diagnostics...${NC}"
+    if [ -f "$SUBIO_DIR/lib/health_check.sh" ]; then
+        bash "$SUBIO_DIR/lib/health_check.sh"
+    else
+        echo -e "${RED}Health check script not found.${NC}"
+    fi
+    read -p "Press Enter to continue..."
+}
+
+function view_logs() {
+    echo -e "${YELLOW}Tailing SubIO logs... (Press Ctrl+C to stop)${NC}"
+    journalctl -u $SERVICE_NAME -f
+}
+
+function speed_test() {
+    echo -e "${YELLOW}--- Speed Test ---${NC}"
+    read -p "Enter local SOCKS port to test [10810]: " TEST_PORT
+    TEST_PORT=${TEST_PORT:-10810}
+    echo -e "${CYAN}Testing connection to Hetzner...${NC}"
+    curl -x socks5h://127.0.0.1:$TEST_PORT -o /dev/null -s -L -w '%{speed_download}' https://fsn1-speed.hetzner.com/100MB.bin > /tmp/speed_result.txt &
+    local curl_pid=$!
+    show_spinner $curl_pid
+    wait $curl_pid
+    local curl_status=$?
+    speed=$(cat /tmp/speed_result.txt 2>/dev/null)
+    
+    if [ $curl_status -eq 0 ] && [ -n "$speed" ]; then
+        awk -v s="$speed" 'BEGIN { printf "Speed: %.2f MB/s = %.2f Mbps\n", s/1000000, s*8/1000000 }'
+    else
+        echo -e "${RED}Test failed or timed out.${NC}"
+        echo -e "${YELLOW}Troubleshooting:${NC}"
+        echo -e "  1. Is the tunnel running? Check Option 10 (Status)."
+        echo -e "  2. Is Datacenter Firewall blocking the connection? Check Hetzner/AWS panel."
+        echo -e "  3. Is port $TEST_PORT correct?"
+    fi
+    read -p "Press Enter to continue..."
+}
+
+function manage_nodes() {
+    echo -e "${CYAN}--- Node Management ---${NC}"
+    echo "1. Add new Server (Iran or Foreign)"
+    echo "2. Remove Server"
+    echo "3. List all configured Servers"
+    echo "0. Back to Main Menu"
+    read -p "Select [0-3]: " node_choice
+    
+    if [[ "$node_choice" == "1" ]]; then
+        read -p "Is this new server Iran (domestic) or Foreign? [iran/foreign]: " s_type
+        read -p "Enter IP address of the server: " s_ip
+        read -p "Enter a short name (e.g. ir2, de1): " s_name
+        read -p "Enter SubIO-SSH Port [2222]: " s_subio_port
+        s_subio_port=${s_subio_port:-2222}
+        read -p "Enter Standard SSH Port (fallback) [22]: " s_ssh_port
+        s_ssh_port=${s_ssh_port:-22}
+        
+        echo -e "${YELLOW}Configuring Local Firewall (if active)...${NC}"
+        if command -v ufw >/dev/null 2>&1; then
+            ufw allow $s_subio_port/tcp >/dev/null 2>&1
+            ufw allow 10810/tcp >/dev/null 2>&1
+            echo -e "${GREEN}UFW configured.${NC}"
+        elif command -v iptables >/dev/null 2>&1; then
+            iptables -I INPUT -p tcp --dport $s_subio_port -j ACCEPT >/dev/null 2>&1
+            iptables -I INPUT -p tcp --dport 10810 -j ACCEPT >/dev/null 2>&1
+            echo -e "${GREEN}iptables configured.${NC}"
+        fi
+        
+        echo -e "${YELLOW}Fetching Host Key automatically via ssh-keyscan on port $s_subio_port...${NC}"
+        ssh-keyscan -p $s_subio_port $s_ip 2>/dev/null | grep ssh-ed25519 | awk '{print $3}' | head -n1 > /tmp/ssh_key_result.txt &
+        local ssh_pid=$!
+        show_spinner $ssh_pid
+        wait $ssh_pid
+        KEY=$(cat /tmp/ssh_key_result.txt 2>/dev/null)
+        if [ -z "$KEY" ]; then
+            echo -e "${RED}Failed to fetch Host Key from $s_ip:$s_subio_port.${NC}"
+            echo -e "${YELLOW}WARNING: Connection timed out or refused! This is usually because:${NC}"
+            echo -e "  1. Datacenter Firewall (Hetzner, AWS Security Group, Iran DC) is blocking port $s_subio_port."
+            echo -e "  2. You must open port $s_subio_port in your provider's control panel."
+            echo -e "  3. The server IP is incorrect or the server is offline."
+            read -p "Press Enter to continue..."
+            return
+        fi
+        echo -e "${GREEN}Successfully fetched key: $KEY${NC}"
+        
+        # Call config_helper.py to add the node
+        python3 $SUBIO_DIR/lib/config_helper.py add-node --type "$s_type" --ip "$s_ip" --name "$s_name" --key "$KEY" --ssh-port "$s_ssh_port" --subio-port "$s_subio_port"
+        systemctl restart $SERVICE_NAME
+        echo -e "${GREEN}Node added and service restarted.${NC}"
+        read -p "Press Enter to continue..."
+    elif [[ "$node_choice" == "2" ]]; then
+        echo -e "${CYAN}Available Nodes:${NC}"
+        python3 $SUBIO_DIR/lib/config_helper.py list-nodes
+        read -p "Enter the Name of the server to remove: " s_name
+        if [ -n "$s_name" ]; then
+            python3 $SUBIO_DIR/lib/config_helper.py remove-node --name "$s_name"
+            systemctl restart $SERVICE_NAME
+            echo -e "${GREEN}Node $s_name removed and service restarted.${NC}"
+        fi
+        read -p "Press Enter to continue..."
+    elif [[ "$node_choice" == "3" ]]; then
+        echo -e "${CYAN}Available Nodes:${NC}"
+        python3 $SUBIO_DIR/lib/config_helper.py list-nodes-ping
+        read -p "Press Enter to continue..."
+    fi
+}
+
+function key_management() {
+    echo -e "${CYAN}--- Key Management ---${NC}"
+    echo "1. Show My Public Key (Copy this to add to another server)"
+    echo "2. Add Remote Public Key (Paste key from another server here)"
+    echo "0. Back to Main Menu"
+    read -p "Select [0-2]: " key_choice
+    
+    if [[ "$key_choice" == "1" ]]; then
+        echo -e "\n${GREEN}Your Public Key:${NC}"
+        cat /root/.ssh/tunnel_key.pub
+        echo -e "\n${YELLOW}Copy the entire line above and paste it in the other server's 'Add Remote Public Key' menu.${NC}"
+        read -p "Press Enter to continue..."
+    elif [[ "$key_choice" == "2" ]]; then
+        echo -e "${CYAN}Paste the Remote Public Key below and press Enter:${NC}"
+        read remote_key
+        if [[ $remote_key == ssh-* ]]; then
+            echo "$remote_key" >> /root/.ssh/authorized_keys
+            echo -e "${GREEN}Key successfully added to authorized_keys!${NC}"
+        else
+            echo -e "${RED}Invalid key format. It should start with ssh-ed25519 or ssh-rsa.${NC}"
+        fi
+        read -p "Press Enter to continue..."
+    fi
+}
+
+function initial_setup() {
+    echo -e "${YELLOW}Running Initial Setup...${NC}"
+    python3 $SUBIO_DIR/lib/config_helper.py init
+    read -p "Press Enter to continue..."
+}
+
+function menu() {
+    while true; do
+        show_header
+        read -p "Please enter your selection [0-12]: " choice
+        case $choice in
+            0) exit 0 ;;
+            1) initial_setup ;;
+            2) echo "Update logic here (git pull / re-run install.sh)"; read -p "Press Enter..." ;;
+            3) echo "Uninstall logic here"; read -p "Press Enter..." ;;
+            4) manage_nodes ;;
+            5) key_management ;;
+            6) cat $CONFIG_FILE | jq .; read -p "Press Enter..." ;;
+            7) systemctl start $SERVICE_NAME; echo "Started."; sleep 1 ;;
+            8) systemctl stop $SERVICE_NAME; echo "Stopped."; sleep 1 ;;
+            9) systemctl restart $SERVICE_NAME; echo "Restarted."; sleep 1 ;;
+            10) check_status ;;
+            11) view_logs ;;
+            12) speed_test ;;
+            *) echo -e "${RED}Invalid selection${NC}"; sleep 1 ;;
+        esac
+    done
+}
+
+menu

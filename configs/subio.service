@@ -1,0 +1,21 @@
+[Unit]
+Description=SubIO Reverse Tunnel Manager
+After=network.target subio-ssh.service
+Requires=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/default/subio
+ExecStart=/usr/bin/env python3 /opt/subio/scripts/subio-manager.py
+Restart=always
+RestartSec=3
+LimitNOFILE=1048576
+
+# Secure the service slightly
+ProtectSystem=full
+# We need write access to /etc/subio, /var/lib/subio, and /tmp (for known_hosts)
+ReadWritePaths=/etc/subio /var/lib/subio /tmp
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

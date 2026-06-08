@@ -1,0 +1,10 @@
+[Unit]
+Description=SUBIO domestic lane health guard
+After=network-online.target subio-ssh.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=-/etc/default/subio-manager
+ExecStart=/usr/bin/python3 /usr/local/bin/subio-lane-guard.py

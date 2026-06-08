@@ -1,0 +1,24 @@
+[Unit]
+Description=SUBIO/OpenSSH reverse SOCKS tunnel manager
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=root
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/etc/default/subio-manager
+Environment=SUBIO_SSH_BIN=/opt/subio-ssh/bin/subio-ssh
+Environment=HPN_REVERSE_CONFIG=/etc/subio-manager.json
+Environment=HPN_REVERSE_CURRENT_HOST_FILE=/etc/subio-manager-current-host.txt
+ExecStart=/usr/bin/python3 /usr/local/bin/subio-manager.py
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=500ms
+KillMode=control-group
+LimitNOFILE=1048576
+TasksMax=infinity
+
+[Install]
+WantedBy=multi-user.target

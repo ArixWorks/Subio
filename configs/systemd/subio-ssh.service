@@ -1,0 +1,24 @@
+[Unit]
+Description=SUBIO OpenSSH server (bundled)
+Documentation=man:subio-sshd(8) man:subio_sshd_config(5)
+After=network.target
+
+[Service]
+Type=simple
+ExecStartPre=/bin/mkdir -p /etc/subio-ssh /etc/subio-ssh/sshd_config.d /var/empty
+ExecStartPre=/bin/sh -c 'getent group subio-sshd >/dev/null 2>&1 || /usr/sbin/groupadd --system subio-sshd'
+ExecStartPre=/bin/sh -c 'id -u subio-sshd >/dev/null 2>&1 || /usr/sbin/useradd --system -g subio-sshd -d /var/empty -s /usr/sbin/nologin -c "SUBIO SSHD privilege separation" subio-sshd'
+ExecStartPre=/bin/sh -c 'if [ ! -s /etc/ssh/ssh_host_ed25519_key ]; then /opt/subio-ssh/bin/subio-ssh-keygen -q -t ed25519 -N "" -f /etc/ssh/ssh_host_ed25519_key; fi'
+ExecStartPre=/bin/sh -c 'for f in /etc/ssh/ssh_host_*; do [ -e "$f" ] || continue; b=${f##*/}; [ -e "/etc/subio-ssh/$b" ] || cp -a "$f" "/etc/subio-ssh/$b"; done'
+ExecStartPre=/bin/sh -c 'for alg in rsa ecdsa ed25519; do [ -s "/etc/subio-ssh/ssh_host_${alg}_key" ] || /opt/subio-ssh/bin/subio-ssh-keygen -q -t "$alg" -N "" -f "/etc/subio-ssh/ssh_host_${alg}_key"; done'
+ExecStartPre=/opt/subio-ssh/sbin/subio-sshd -t -f /etc/subio-ssh/sshd_config
+ExecStart=/opt/subio-ssh/sbin/subio-sshd -D -f /etc/subio-ssh/sshd_config
+ExecReload=/opt/subio-ssh/sbin/subio-sshd -t -f /etc/subio-ssh/sshd_config
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=on-failure
+RestartPreventExitStatus=255
+
+[Install]
+WantedBy=multi-user.target
+Alias=subio-sshd.service
