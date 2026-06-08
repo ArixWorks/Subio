@@ -27,16 +27,13 @@ if [ -d "$SUBIO_DIR" ]; then
     echo -e "${YELLOW}SubIO is already installed. Updating...${NC}"
     cd $SUBIO_DIR
     git pull
-else
-    echo -e "${YELLOW}Downloading SubIO files...${NC}"
-    # Replace this with the actual github URL when published
-    git clone https://github.com/mhsanaei/3x-ui.git /tmp/dummy > /dev/null 2>&1
-    # For now, assuming the files are already in the directory where install.sh is run from
-    # if it's run locally. In a real scenario: git clone https://github.com/USER/SubIO.git $SUBIO_DIR
-    
-    # Simulate moving local files to /opt/subio for now since we're testing locally
-    mkdir -p $SUBIO_DIR
-    cp -r $(pwd)/* $SUBIO_DIR/
+    echo -e "${YELLOW}Downloading SubIO files from GitHub...${NC}"
+    rm -rf $SUBIO_DIR
+    git clone https://github.com/ArixWorks/Subio.git $SUBIO_DIR > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Failed to download repository. Please check your internet connection.${NC}"
+        exit 1
+    fi
 fi
 
 echo -e "${YELLOW}Setting up permissions...${NC}"
