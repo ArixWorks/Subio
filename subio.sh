@@ -9,8 +9,8 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 SUBIO_DIR="/opt/subio"
-CONFIG_FILE="/etc/subio/subio.json"
-SERVICE_NAME="subio.service"
+CONFIG_FILE="/etc/subio-manager.json"
+SERVICE_NAME="subio-manager.service"
 
 if [[ $EUID -ne 0 ]]; then
    echo -e "${RED}This script must be run as root${NC}" 
@@ -290,9 +290,9 @@ function menu() {
             4) manage_nodes ;;
             5) key_management ;;
             6) cat $CONFIG_FILE | jq .; read -p "Press Enter..." ;;
-            7) systemctl start $SERVICE_NAME; echo "Started."; sleep 1 ;;
-            8) systemctl stop $SERVICE_NAME; echo "Stopped."; sleep 1 ;;
-            9) systemctl restart $SERVICE_NAME; echo "Restarted."; sleep 1 ;;
+            7) systemctl start subio-ssh.service subio-manager.service; echo "Started."; sleep 1 ;;
+            8) systemctl stop subio-ssh.service subio-manager.service; echo "Stopped."; sleep 1 ;;
+            9) systemctl restart subio-ssh.service subio-manager.service; echo "Restarted."; sleep 1 ;;
             10) check_status ;;
             11) view_logs ;;
             12) speed_test ;;
