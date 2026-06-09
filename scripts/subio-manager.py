@@ -677,7 +677,7 @@ def common_ssh_options(strict_host_key: bool = True) -> List[str]:
                 "-o",
                 f"UserKnownHostsFile={KNOWN_HOSTS_FILE}",
                 "-o",
-                "StrictHostKeyChecking=yes",
+                "StrictHostKeyChecking=accept-new",
             ]
         )
     else:
