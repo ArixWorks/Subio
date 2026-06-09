@@ -23,10 +23,10 @@ show_service_status() {
                 echo -e "  ${YELLOW}○${NC} ${BOLD}${svc}${NC}: ${YELLOW}inactive${NC} (enabled: ${enabled})"
                 ;;
             failed)
-                echo -e "  ${RED}✖${NC} ${BOLD}${svc}${NC}: ${RED}failed${NC}"
+                echo -e "  ${RED}✖${NC} ${BOLD}${svc}${NC}: ${RED}failed${NC} (enabled: ${enabled})"
                 ;;
             *)
-                echo -e "  ${DIM}?${NC} ${BOLD}${svc}${NC}: ${DIM}${state}${NC}"
+                echo -e "  ${DIM}?${NC} ${BOLD}${svc}${NC}: ${DIM}${state}${NC} (enabled: ${enabled})"
                 ;;
         esac
     done
