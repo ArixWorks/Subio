@@ -234,6 +234,54 @@ function initial_setup() {
     read -p "Press Enter to return to main menu..."
 }
 
+function uninstall_subio() {
+    echo -e "${RED}WARNING: This will completely remove SubIO Tunnel and all its configurations!${NC}"
+    read -p "Are you sure you want to proceed? [y/N]: " confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo -e "${GREEN}Uninstallation aborted.${NC}"
+        read -p "Press Enter to return to main menu..."
+        return
+    fi
+
+    echo -e "${YELLOW}Stopping and disabling services...${NC}"
+    systemctl stop subio.service subio-ssh.service subio-manager.service subio-lane-guard.service 2>/dev/null
+    systemctl disable subio.service subio-ssh.service subio-manager.service subio-lane-guard.service 2>/dev/null
+
+    echo -e "${YELLOW}Removing systemd service files...${NC}"
+    rm -f /etc/systemd/system/subio.service
+    rm -f /etc/systemd/system/subio-ssh.service
+    rm -f /etc/systemd/system/subio-manager.service
+    rm -f /etc/systemd/system/subio-lane-guard.service
+    systemctl daemon-reload
+
+    echo -e "${YELLOW}Removing configuration files...${NC}"
+    rm -rf /etc/subio
+    rm -rf /etc/subio-ssh
+    rm -rf /var/lib/subio
+    rm -f /etc/subio-manager.json
+    rm -f /etc/default/subio*
+    rm -f /etc/subio-manager-current-host.txt
+
+    echo -e "${YELLOW}Removing installed binaries and scripts...${NC}"
+    rm -f /usr/local/bin/subio-manager.py
+    rm -f /usr/local/bin/subio-lane-guard.py
+    rm -rf /opt/subio-ssh
+    rm -rf /opt/hpnssh
+    rm -rf /opt/subio
+
+    echo -e "${YELLOW}Attempting to remove hpnssh package if installed via APT...${NC}"
+    apt-get remove --purge -y hpnssh 2>/dev/null || true
+    
+    echo -e "${YELLOW}Removing SubIO CLI command...${NC}"
+    rm -f /usr/local/bin/subio
+    rm -f /usr/bin/subio
+
+    echo -e "${GREEN}SubIO Tunnel has been completely uninstalled.${NC}"
+    echo -e "${YELLOW}You will be disconnected from this menu upon pressing Enter.${NC}"
+    read -p "Press Enter to exit..."
+    exit 0
+}
+
 function menu() {
     while true; do
         show_header
@@ -242,7 +290,7 @@ function menu() {
             0) exit 0 ;;
             1) initial_setup ;;
             2) echo "Update logic here (git pull / re-run install.sh)"; read -p "Press Enter..." ;;
-            3) echo "Uninstall logic here"; read -p "Press Enter..." ;;
+            3) uninstall_subio ;;
             4) manage_nodes ;;
             5) key_management ;;
             6) cat $CONFIG_FILE | jq .; read -p "Press Enter..." ;;
