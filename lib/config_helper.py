@@ -4,7 +4,7 @@ import os
 import sys
 import argparse
 
-CONFIG_FILE = "/etc/subio/subio.json"
+CONFIG_FILE = "/etc/subio-manager.json"
 
 def load_config():
     if not os.path.exists(CONFIG_FILE):
