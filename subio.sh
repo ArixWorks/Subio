@@ -99,11 +99,7 @@ function show_spinner() {
 
 function check_status() {
     echo -e "${YELLOW}Running Health Diagnostics...${NC}"
-    if [ -f "$SUBIO_DIR/lib/health_check.sh" ]; then
-        bash "$SUBIO_DIR/lib/health_check.sh"
-    else
-        echo -e "${RED}Health check script not found.${NC}"
-    fi
+    bash "$SUBIO_DIR/setup.sh" status
     read -p "Press Enter to continue..."
 }
 
