@@ -44,9 +44,9 @@ _install_subio_ssh_ppa() {
 
     # Try PPA first (Ubuntu)
     if command -v add-apt-repository &>/dev/null; then
-        if add-apt-repository -y ppa:rapier1/hpn-ssh 2>/dev/null; then
+        if add-apt-repository -y ppa:rapier1/hpnssh 2>/dev/null; then
             apt-get update -y
-            if apt-get install -y hpn-ssh 2>/dev/null; then
+            if apt-get install -y hpnssh 2>/dev/null; then
                 log_ok "SUBIO-SSH installed from PPA"
                 _create_opt_symlinks
                 return 0
@@ -62,8 +62,8 @@ _install_subio_ssh_copr() {
     log_info "Attempting COPR install for ${OS_ID}..."
 
     if command -v dnf &>/dev/null; then
-        if dnf copr enable -y rapier1/hpn-ssh 2>/dev/null; then
-            if dnf install -y hpn-ssh 2>/dev/null; then
+        if dnf copr enable -y rapier1/hpnssh 2>/dev/null; then
+            if dnf install -y hpnssh 2>/dev/null; then
                 log_ok "SUBIO-SSH installed from COPR"
                 _create_opt_symlinks
                 return 0

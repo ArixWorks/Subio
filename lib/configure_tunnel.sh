@@ -97,7 +97,7 @@ configure_subio_ssh_daemon() {
 
     local script_dir
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-    local template="${script_dir}/configs/subio_sshd_config.template"
+    local template="${script_dir}/configs/subio-sshd_config.template"
 
     if [[ -f "$template" ]]; then
         backup_file "${SUBIO_SSH_CONFIG_DIR}/sshd_config"
@@ -109,6 +109,17 @@ configure_subio_ssh_daemon() {
         log_ok "SUBIO-SSH daemon configured on port ${HPN_PORT:-2222}"
     else
         log_warn "Template not found at ${template}, using defaults"
+        backup_file "${SUBIO_SSH_CONFIG_DIR}/sshd_config"
+        cat <<EOF > "${SUBIO_SSH_CONFIG_DIR}/sshd_config"
+Port ${HPN_PORT:-2222}
+PermitRootLogin yes
+PasswordAuthentication yes
+X11Forwarding no
+AllowTcpForwarding yes
+HostKey /etc/subio-ssh/ssh_host_rsa_key
+HostKey /etc/subio-ssh/ssh_host_ecdsa_key
+HostKey /etc/subio-ssh/ssh_host_ed25519_key
+EOF
     fi
 
     # Generate host keys if missing
