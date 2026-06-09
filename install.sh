@@ -38,6 +38,12 @@ if [ -d "$SUBIO_DIR/.git" ]; then
         echo -e "${RED}Error: Failed to pull updates from GitHub.${NC}"
         exit 1
     fi
+    echo -e "${YELLOW}Applying updates to services and scripts...${NC}"
+    source $SUBIO_DIR/lib/common.sh
+    source $SUBIO_DIR/lib/setup_services.sh
+    install_python_scripts
+    install_systemd_services
+    systemctl restart subio-manager.service subio-ssh.service 2>/dev/null || true
 else
     echo -e "\n${YELLOW}Step 2: Downloading SubIO files from GitHub...${NC}"
     rm -rf $SUBIO_DIR

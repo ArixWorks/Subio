@@ -285,7 +285,7 @@ function menu() {
         case $choice in
             0) exit 0 ;;
             1) initial_setup ;;
-            2) echo "Update logic here (git pull / re-run install.sh)"; read -p "Press Enter..." ;;
+            2) bash <(curl -Ls https://raw.githubusercontent.com/ArixWorks/Subio/main/install.sh); read -p "Press Enter..." ;;
             3) uninstall_subio ;;
             4) manage_nodes ;;
             5) key_management ;;
