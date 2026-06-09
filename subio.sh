@@ -230,8 +230,8 @@ function key_management() {
 
 function initial_setup() {
     echo -e "${YELLOW}Running Initial Setup...${NC}"
-    python3 $SUBIO_DIR/lib/config_helper.py init
-    read -p "Press Enter to continue..."
+    bash $SUBIO_DIR/setup.sh
+    read -p "Press Enter to return to main menu..."
 }
 
 function menu() {
