@@ -15,7 +15,7 @@ ExecStartPre=/opt/subio-ssh/sbin/hpnsshd -t -f /etc/subio-ssh/sshd_config
 ExecStart=/opt/subio-ssh/sbin/hpnsshd -D -f /etc/subio-ssh/sshd_config
 ExecReload=/opt/subio-ssh/sbin/hpnsshd -t -f /etc/subio-ssh/sshd_config
 ExecReload=/bin/kill -HUP $MAINPID
-KillMode=process
+KillMode=control-group
 Restart=on-failure
 RestartPreventExitStatus=255
 
