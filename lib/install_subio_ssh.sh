@@ -8,9 +8,9 @@ install_subio_ssh() {
     log_step "Installing SUBIO-SSH"
 
     # Already installed?
-    if [[ -x /opt/subio-ssh/bin/subio-ssh ]]; then
+    if [[ -x /opt/subio-ssh/bin/hpnssh ]]; then
         local ver
-        ver=$(/opt/subio-ssh/bin/subio-ssh -V 2>&1 | head -1 || echo "unknown")
+        ver=$(/opt/subio-ssh/bin/hpnssh -V 2>&1 | head -1 || echo "unknown")
         log_ok "SUBIO-SSH already installed: ${ver}"
         return 0
     fi
@@ -26,10 +26,10 @@ install_subio_ssh() {
     fi
 
     # Verify
-    if [[ -x /opt/subio-ssh/bin/subio-ssh ]]; then
+    if [[ -x /opt/subio-ssh/bin/hpnssh ]]; then
         log_ok "SUBIO-SSH installed successfully"
-        /opt/subio-ssh/bin/subio-ssh -V 2>&1 || true
-    elif command -v subio-ssh &>/dev/null; then
+        /opt/subio-ssh/bin/hpnssh -V 2>&1 || true
+    elif command -v hpnssh &>/dev/null; then
         # PPA installs to /usr/bin — create symlinks in /opt/subio-ssh
         _create_opt_symlinks
         log_ok "SUBIO-SSH installed via package manager"
@@ -44,9 +44,9 @@ _install_subio_ssh_ppa() {
 
     # Try PPA first (Ubuntu)
     if command -v add-apt-repository &>/dev/null; then
-        if add-apt-repository -y ppa:rapier1/subio-ssh 2>/dev/null; then
+        if add-apt-repository -y ppa:rapier1/hpn-ssh 2>/dev/null; then
             apt-get update -y
-            if apt-get install -y subio-ssh 2>/dev/null; then
+            if apt-get install -y hpn-ssh 2>/dev/null; then
                 log_ok "SUBIO-SSH installed from PPA"
                 _create_opt_symlinks
                 return 0
@@ -62,8 +62,8 @@ _install_subio_ssh_copr() {
     log_info "Attempting COPR install for ${OS_ID}..."
 
     if command -v dnf &>/dev/null; then
-        if dnf copr enable -y rapier1/subio-ssh 2>/dev/null; then
-            if dnf install -y subio-ssh 2>/dev/null; then
+        if dnf copr enable -y rapier1/hpn-ssh 2>/dev/null; then
+            if dnf install -y hpn-ssh 2>/dev/null; then
                 log_ok "SUBIO-SSH installed from COPR"
                 _create_opt_symlinks
                 return 0
@@ -95,7 +95,7 @@ _install_subio_ssh_source() {
     mkdir -p "$build_dir"
 
     log_sub "Cloning SUBIO-SSH repository..."
-    git clone --depth=1 https://github.com/rapier1/subio-ssh.git "$build_dir/subio-ssh"
+    git clone --depth=1 https://github.com/rapier1/hpn-ssh.git "$build_dir/subio-ssh"
 
     cd "$build_dir/subio-ssh"
 
@@ -129,8 +129,8 @@ _install_subio_ssh_source() {
 _create_opt_symlinks() {
     # If SUBIO-SSH was installed from PPA, binaries may be in /usr/bin.
     # Create /opt/subio-ssh structure with symlinks for compatibility.
-    local bins=( subio-ssh hpnscp subio-ssh-add subio-ssh-agent subio-ssh-keygen subio-ssh-keyscan )
-    local sbins=( subio-sshd )
+    local bins=( hpnssh hpnscp hpnssh-add hpnssh-agent hpnssh-keygen hpnssh-keyscan )
+    local sbins=( hpnsshd )
 
     ensure_dir /opt/subio-ssh/bin
     ensure_dir /opt/subio-ssh/sbin
@@ -156,7 +156,7 @@ _create_opt_symlinks() {
 
     # libexec
     ensure_dir /opt/subio-ssh/libexec
-    local libexecs=( subio-ssh-keysign subio-ssh-pkcs11-helper subio-ssh-sk-helper subio-sshd-auth subio-sshd-session )
+    local libexecs=( hpnssh-keysign hpnssh-pkcs11-helper hpnssh-sk-helper hpnsshd-auth hpnsshd-session )
     for b in "${libexecs[@]}"; do
         local src
         for search in /usr/libexec /usr/lib/openssh /usr/lib/ssh; do
