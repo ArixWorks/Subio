@@ -54,6 +54,15 @@ def add_node(node_type, ip, name, key, ssh_port, subio_port, site="XX", socks_po
         "subio_port": int(subio_port)
     }
     
+    
+    for h in cluster.get("domestic_hosts", []) + cluster.get("foreign_hosts", []):
+        if h.get("name") == name:
+            print(f"Error: Node with name '{name}' already exists.")
+            sys.exit(1)
+        if h.get("ipv4") == ip:
+            print(f"Error: Node with IP '{ip}' already exists.")
+            sys.exit(1)
+
     if node_type.lower() == 'iran':
         cluster["domestic_hosts"].append(host_entry)
         # Assuming port 10810 for the tunnel if first node
