@@ -43,10 +43,23 @@ _install_subio_ssh_ppa() {
     log_info "Attempting PPA install for ${OS_ID}..."
 
     # Try PPA first (Ubuntu)
-    if command -v add-apt-repository &>/dev/null; then
-        if add-apt-repository -y ppa:rapier1/hpnssh 2>/dev/null; then
-            apt-get update -y
-            if apt-get install -y hpnssh 2>/dev/null; then
+    if [[ "$OS_ID" == "ubuntu" ]]; then
+        export DEBIAN_FRONTEND=noninteractive
+        log_info "Manually configuring PPA to avoid apt-check..."
+        
+        local fp
+        fp=$(curl -s --connect-timeout 5 "https://api.launchpad.net/1.0/~rapier1/+archive/ubuntu/hpnssh" | jq -r '.signing_key_fingerprint' 2>/dev/null)
+        
+        if [[ -n "$fp" && "$fp" != "null" ]]; then
+            mkdir -p /etc/apt/keyrings
+            curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$fp" | gpg --dearmor --yes -o /etc/apt/keyrings/rapier1-hpnssh.gpg 2>/dev/null
+            
+            local codename
+            codename=$(lsb_release -cs)
+            echo "deb [signed-by=/etc/apt/keyrings/rapier1-hpnssh.gpg] https://ppa.launchpadcontent.net/rapier1/hpnssh/ubuntu $codename main" > /etc/apt/sources.list.d/rapier1-ubuntu-hpnssh.list
+            
+            apt-get update -y >/dev/null 2>&1
+            if apt-get install -y hpnssh >/dev/null 2>&1; then
                 log_ok "SUBIO-SSH installed from PPA"
                 _create_opt_symlinks
                 return 0
@@ -177,17 +190,32 @@ install_prerequisites() {
     detect_os
     log_info "Detected OS: ${OS_NAME}"
 
-    pkg_update
-
+    local pkgs=()
     if is_debian_based; then
-        ensure_packages python3 curl jq openssl ca-certificates \
-            iproute2 net-tools procps
+        pkgs=(python3 curl jq openssl ca-certificates iproute2 net-tools procps)
     elif is_rhel_based; then
-        ensure_packages python3 curl jq openssl ca-certificates \
-            iproute net-tools procps-ng
+        pkgs=(python3 curl jq openssl ca-certificates iproute net-tools procps-ng)
     else
         log_warn "Unsupported distro. Please ensure python3, curl, jq, openssl are installed."
+        return 0
     fi
+
+    local missing=()
+    for pkg in "${pkgs[@]}"; do
+        if ! dpkg -s "$pkg" &>/dev/null 2>&1 && ! rpm -q "$pkg" &>/dev/null 2>&1; then
+            missing+=("$pkg")
+        fi
+    done
+
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        log_ok "All prerequisites are already installed. Skipping package update."
+        return 0
+    fi
+
+    log_info "Missing prerequisites: ${missing[*]}. Updating package lists..."
+    export DEBIAN_FRONTEND=noninteractive
+    pkg_update
+    ensure_packages "${missing[@]}"
 
     log_ok "Prerequisites installed"
 }

@@ -18,14 +18,28 @@ echo -e "${CYAN}=================================================${NC}"
 
 # Install dependencies
 echo -e "${YELLOW}Step 1: Installing dependencies...${NC}"
-if ! apt-get update -y; then
-    echo -e "${RED}Error: Failed to update package lists. Check your internet connection.${NC}"
-    exit 1
-fi
 
-if ! apt-get install -y curl jq python3 git; then
-    echo -e "${RED}Error: Failed to install required packages. Check your internet connection or APT sources.${NC}"
-    exit 1
+export DEBIAN_FRONTEND=noninteractive
+
+MISSING_PKGS=()
+for pkg in curl jq python3 git; do
+    if ! dpkg -s "$pkg" &>/dev/null 2>&1 && ! rpm -q "$pkg" &>/dev/null 2>&1; then
+        MISSING_PKGS+=("$pkg")
+    fi
+done
+
+if [[ ${#MISSING_PKGS[@]} -eq 0 ]]; then
+    echo -e "${GREEN}All required packages are already installed. Skipping apt update.${NC}"
+else
+    echo -e "${YELLOW}Missing packages: ${MISSING_PKGS[*]}. Updating repositories...${NC}"
+    if ! apt-get update -y >/dev/null 2>&1; then
+        echo -e "${RED}Error: Failed to update package lists. Check your internet connection.${NC}"
+        # We don't exit immediately because sometimes update fails but install works
+    fi
+    if ! apt-get install -y "${MISSING_PKGS[@]}" >/dev/null 2>&1; then
+        echo -e "${RED}Error: Failed to install required packages. Check your internet connection or APT sources.${NC}"
+        exit 1
+    fi
 fi
 
 SUBIO_DIR="/opt/subio"
