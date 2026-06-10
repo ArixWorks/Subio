@@ -55,6 +55,11 @@ _install_subio_ssh_ppa() {
             if curl -fsSL --connect-timeout 5 "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$fp" | gpg --dearmor --yes -o /etc/apt/keyrings/rapier1-hpnssh.gpg 2>/dev/null; then
                 local codename
                 codename=$(lsb_release -cs)
+                
+                # Remove any existing rapier1 PPA lists to prevent Conflicting Signed-By errors
+                rm -f /etc/apt/sources.list.d/rapier1*.list 2>/dev/null || true
+                rm -f /etc/apt/sources.list.d/archive_uri-https_ppa_launchpadcontent_net_rapier1*.list 2>/dev/null || true
+                
                 echo "deb [signed-by=/etc/apt/keyrings/rapier1-hpnssh.gpg] https://ppa.launchpadcontent.net/rapier1/hpnssh/ubuntu $codename main" > /etc/apt/sources.list.d/rapier1-ubuntu-hpnssh.list
                 
                 apt-get update -y >/dev/null 2>&1 || true
