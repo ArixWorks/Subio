@@ -48,21 +48,21 @@ _install_subio_ssh_ppa() {
         log_info "Manually configuring PPA to avoid apt-check..."
         
         local fp
-        fp=$(curl -s --connect-timeout 5 "https://api.launchpad.net/1.0/~rapier1/+archive/ubuntu/hpnssh" | jq -r '.signing_key_fingerprint' 2>/dev/null)
+        fp=$(curl -s --connect-timeout 5 "https://api.launchpad.net/1.0/~rapier1/+archive/ubuntu/hpnssh" | jq -r '.signing_key_fingerprint' 2>/dev/null || true)
         
         if [[ -n "$fp" && "$fp" != "null" ]]; then
             mkdir -p /etc/apt/keyrings
-            curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$fp" | gpg --dearmor --yes -o /etc/apt/keyrings/rapier1-hpnssh.gpg 2>/dev/null
-            
-            local codename
-            codename=$(lsb_release -cs)
-            echo "deb [signed-by=/etc/apt/keyrings/rapier1-hpnssh.gpg] https://ppa.launchpadcontent.net/rapier1/hpnssh/ubuntu $codename main" > /etc/apt/sources.list.d/rapier1-ubuntu-hpnssh.list
-            
-            apt-get update -y >/dev/null 2>&1
-            if apt-get install -y hpnssh >/dev/null 2>&1; then
-                log_ok "SUBIO-SSH installed from PPA"
-                _create_opt_symlinks
-                return 0
+            if curl -fsSL --connect-timeout 5 "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$fp" | gpg --dearmor --yes -o /etc/apt/keyrings/rapier1-hpnssh.gpg 2>/dev/null; then
+                local codename
+                codename=$(lsb_release -cs)
+                echo "deb [signed-by=/etc/apt/keyrings/rapier1-hpnssh.gpg] https://ppa.launchpadcontent.net/rapier1/hpnssh/ubuntu $codename main" > /etc/apt/sources.list.d/rapier1-ubuntu-hpnssh.list
+                
+                apt-get update -y >/dev/null 2>&1 || true
+                if apt-get install -y hpnssh >/dev/null 2>&1; then
+                    log_ok "SUBIO-SSH installed from PPA"
+                    _create_opt_symlinks
+                    return 0
+                fi
             fi
         fi
         log_warn "PPA install failed, falling back to source build..."
