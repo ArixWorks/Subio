@@ -141,7 +141,19 @@ function manage_nodes() {
     read -p "Select [0-3]: " node_choice
     
     if [[ "$node_choice" == "1" ]]; then
-        read -p "Is this new server Iran (domestic) or Foreign? [iran/foreign]: " s_type
+        echo -e "${CYAN}What type of server are you adding?${NC}"
+        echo "1. Iran (Domestic)"
+        echo "2. Foreign (Kharej)"
+        read -p "Select [1-2]: " s_type_num
+        
+        if [[ "$s_type_num" == "1" ]]; then
+            s_type="iran"
+        elif [[ "$s_type_num" == "2" ]]; then
+            s_type="foreign"
+        else
+            echo -e "${RED}Invalid selection. Returning to menu.${NC}"
+            return
+        fi
         read -p "Enter IP address of the server: " s_ip
         read -p "Enter a short name (e.g. ir2, de1): " s_name
         read -p "Enter SubIO-SSH Port [2222]: " s_subio_port
