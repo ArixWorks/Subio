@@ -69,7 +69,7 @@ for c in clusters:
                 ports.add((site, int(p)))
         else:
             ports.add((site, int(ps)))
-for site, port in sorted(ports):
+for site, port in sorted(ports, key=lambda x: x[1]):
     print(f'{site}:{port}')
 " 2>/dev/null)
 
