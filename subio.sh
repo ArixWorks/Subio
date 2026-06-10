@@ -17,11 +17,39 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
+function read_ascii() {
+    local prompt="$1"
+    local var_name="$2"
+    local default_val="$3"
+    local tmp_val
+    while true; do
+        if [[ -n "$default_val" ]]; then
+            read -p "$(echo -e "${prompt} [${default_val}]: ")" tmp_val
+            tmp_val=${tmp_val:-$default_val}
+        else
+            read -p "$(echo -e "${prompt}: ")" tmp_val
+        fi
+        
+        if [[ -z "$tmp_val" ]]; then
+            echo -e "${RED}This field is required.${NC}"
+            continue
+        fi
+        
+        if LC_ALL=C echo "$tmp_val" | grep -q '[^ -~]'; then
+            echo -e "${RED}Error: Only English characters and numbers are allowed. Please try again.${NC}"
+            continue
+        fi
+        
+        eval "$var_name=\"\$tmp_val\""
+        break
+    done
+}
+
 function show_header() {
     clear
     echo -e "${CYAN}╔────────────────────────────────────────────────╗${NC}"
-    echo -e "${CYAN}│   SubIO Tunnel Management Script               │${NC}"
-    echo -e "${CYAN}│   0. Exit                                      │${NC}"
+    echo -e "${CYAN}│${NC}   ${BOLD}SubIO Tunnel Management Script${NC}               ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}   0. Exit                                      ${CYAN}│${NC}"
     echo -e "${CYAN}│────────────────────────────────────────────────│${NC}"
     echo -e "${CYAN}│   1. Install / Initial Setup                   │${NC}"
     echo -e "${CYAN}│   2. Update SubIO                              │${NC}"
@@ -154,21 +182,17 @@ function manage_nodes() {
             echo -e "${RED}Invalid selection. Returning to menu.${NC}"
             return
         fi
-        read -p "Enter IP address of the server: " s_ip
-        read -p "Enter a short name (e.g. ir2, de1): " s_name
-        read -p "Enter SubIO-SSH Port [2222]: " s_subio_port
-        s_subio_port=${s_subio_port:-2222}
-        read -p "Enter Standard SSH Port (fallback) [22]: " s_ssh_port
-        s_ssh_port=${s_ssh_port:-22}
+        read_ascii "Enter IP address of the server" s_ip ""
+        read_ascii "Enter a short name (e.g. ir2, de1)" s_name ""
+        read_ascii "Enter SubIO-SSH Port" s_subio_port "2222"
+        read_ascii "Enter Standard SSH Port (fallback)" s_ssh_port "22"
         
         local s_site="XX"
         local s_socks_port="10810"
         if [[ "$s_type" == "foreign" ]]; then
-            read -p "Enter Site Code (e.g. DE, UK): " s_site
+            read_ascii "Enter Site Code (e.g. DE, UK)" s_site "XX"
             s_site=$(echo "$s_site" | tr '[:lower:]' '[:upper:]')
-            s_site=${s_site:-XX}
-            read -p "Enter SOCKS port for this server [10811]: " s_socks_port
-            s_socks_port=${s_socks_port:-10811}
+            read_ascii "Enter SOCKS port for this server" s_socks_port "10811"
         fi
         
         echo -e "${YELLOW}Configuring Local Firewall (if active)...${NC}"
@@ -207,7 +231,7 @@ function manage_nodes() {
     elif [[ "$node_choice" == "2" ]]; then
         echo -e "${CYAN}Available Nodes:${NC}"
         python3 $SUBIO_DIR/lib/config_helper.py list-nodes
-        read -p "Enter the Name of the server to remove: " s_name
+        read_ascii "Enter the Name of the server to remove" s_name ""
         if [ -n "$s_name" ]; then
             python3 $SUBIO_DIR/lib/config_helper.py remove-node --name "$s_name"
             systemctl restart $SERVICE_NAME
@@ -235,7 +259,7 @@ function key_management() {
         read -p "Press Enter to continue..."
     elif [[ "$key_choice" == "2" ]]; then
         echo -e "${CYAN}Paste the Remote Public Key below and press Enter:${NC}"
-        read remote_key
+        read_ascii "Remote Key" remote_key ""
         if [[ $remote_key == ssh-* ]]; then
             echo "$remote_key" >> /root/.ssh/authorized_keys
             echo -e "${GREEN}Key successfully added to authorized_keys!${NC}"

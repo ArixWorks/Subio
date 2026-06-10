@@ -151,19 +151,28 @@ ask_input() {
     local prompt="$1"
     local default="${2:-}"
     local answer
-    if [[ -n "$default" ]]; then
-        read -rp "$(echo -e "${BOLD}${prompt}${NC} ${DIM}[${default}]${NC}: ")" answer
-        echo "${answer:-$default}"
-    else
-        while true; do
+    while true; do
+        if [[ -n "$default" ]]; then
+            read -rp "$(echo -e "${BOLD}${prompt}${NC} ${DIM}[${default}]${NC}: ")" answer
+            answer="${answer:-$default}"
+        else
             read -rp "$(echo -e "${BOLD}${prompt}${NC}: ")" answer
-            if [[ -n "$answer" ]]; then
-                echo "$answer"
-                return 0
-            fi
+        fi
+        
+        if [[ -z "$answer" ]]; then
             echo -e "${RED}  ⚠ This field is required.${NC}" >&2
-        done
-    fi
+            continue
+        fi
+        
+        # Check if answer contains any character outside the ASCII printable range (space to tilde)
+        if LC_ALL=C echo "$answer" | grep -q '[^ -~]'; then
+            echo -e "${RED}  ⚠ Error: Only English characters and numbers are allowed. Please try again.${NC}" >&2
+            continue
+        fi
+        
+        echo "$answer"
+        return 0
+    done
 }
 
 ask_yes_no() {
