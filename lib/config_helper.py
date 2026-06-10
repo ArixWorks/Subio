@@ -103,6 +103,14 @@ def remove_node(name):
         removed = True
         
     if removed:
+        # Clean up orphaned sites in port mappings
+        if "foreign_to_domestic_ports_by_site" in cluster:
+            active_foreign_sites = {h.get("site") for h in cluster.get("foreign_hosts", []) if h.get("site")}
+            cluster["foreign_to_domestic_ports_by_site"] = {
+                site: ports for site, ports in cluster["foreign_to_domestic_ports_by_site"].items() 
+                if site in active_foreign_sites
+            }
+            
         save_config(config)
         print(f"Node {name} removed successfully.")
     else:
