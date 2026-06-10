@@ -38,7 +38,7 @@ def init_config():
     else:
         print("Config already exists.")
 
-def add_node(node_type, ip, name, key, ssh_port, subio_port):
+def add_node(node_type, ip, name, key, ssh_port, subio_port, site="XX", socks_port=10810):
     config = load_config()
     if not config:
         print("Error: Config not initialized. Run init first.")
@@ -60,8 +60,14 @@ def add_node(node_type, ip, name, key, ssh_port, subio_port):
         if not cluster["foreign_to_domestic_ports_by_site"]:
             cluster["foreign_to_domestic_ports_by_site"]["XX"] = [10810]
     else:
-        host_entry["site"] = "XX"
+        host_entry["site"] = site
         cluster["foreign_hosts"].append(host_entry)
+        if "foreign_to_domestic_ports_by_site" not in cluster:
+            cluster["foreign_to_domestic_ports_by_site"] = {}
+        if site not in cluster["foreign_to_domestic_ports_by_site"]:
+            cluster["foreign_to_domestic_ports_by_site"][site] = []
+        if socks_port not in cluster["foreign_to_domestic_ports_by_site"][site]:
+            cluster["foreign_to_domestic_ports_by_site"][site].append(int(socks_port))
         
     save_config(config)
     print(f"Node {name} added successfully.")
@@ -141,6 +147,8 @@ def main():
     add_parser.add_argument("--key", required=True)
     add_parser.add_argument("--ssh-port", default="22")
     add_parser.add_argument("--subio-port", default="2222")
+    add_parser.add_argument("--site", default="XX")
+    add_parser.add_argument("--socks-port", default="10810")
     
     rm_parser = subparsers.add_parser("remove-node")
     rm_parser.add_argument("--name", required=True)
@@ -153,7 +161,7 @@ def main():
     if args.command == "init":
         init_config()
     elif args.command == "add-node":
-        add_node(args.type, args.ip, args.name, args.key, args.ssh_port, args.subio_port)
+        add_node(args.type, args.ip, args.name, args.key, args.ssh_port, args.subio_port, getattr(args, 'site', 'XX'), int(getattr(args, 'socks_port', 10810)))
     elif args.command == "remove-node":
         remove_node(args.name)
     elif args.command == "list-nodes":

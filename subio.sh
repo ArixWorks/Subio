@@ -149,6 +149,16 @@ function manage_nodes() {
         read -p "Enter Standard SSH Port (fallback) [22]: " s_ssh_port
         s_ssh_port=${s_ssh_port:-22}
         
+        local s_site="XX"
+        local s_socks_port="10810"
+        if [[ "$s_type" == "foreign" ]]; then
+            read -p "Enter Site Code (e.g. DE, UK): " s_site
+            s_site=$(echo "$s_site" | tr '[:lower:]' '[:upper:]')
+            s_site=${s_site:-XX}
+            read -p "Enter SOCKS port for this server [10811]: " s_socks_port
+            s_socks_port=${s_socks_port:-10811}
+        fi
+        
         echo -e "${YELLOW}Configuring Local Firewall (if active)...${NC}"
         if command -v ufw >/dev/null 2>&1; then
             ufw allow $s_subio_port/tcp >/dev/null 2>&1
@@ -178,7 +188,7 @@ function manage_nodes() {
         echo -e "${GREEN}Successfully fetched key: $KEY${NC}"
         
         # Call config_helper.py to add the node
-        python3 $SUBIO_DIR/lib/config_helper.py add-node --type "$s_type" --ip "$s_ip" --name "$s_name" --key "$KEY" --ssh-port "$s_ssh_port" --subio-port "$s_subio_port"
+        python3 $SUBIO_DIR/lib/config_helper.py add-node --type "$s_type" --ip "$s_ip" --name "$s_name" --key "$KEY" --ssh-port "$s_ssh_port" --subio-port "$s_subio_port" --site "$s_site" --socks-port "$s_socks_port"
         systemctl restart $SERVICE_NAME
         echo -e "${GREEN}Node added and service restarted.${NC}"
         read -p "Press Enter to continue..."
