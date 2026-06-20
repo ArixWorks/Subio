@@ -98,6 +98,7 @@ install_subio_ssh >/dev/null 2>&1
 source lib/configure_tunnel.sh
 export HPN_PORT=2222
 setup_sshd_config >/dev/null 2>&1
+systemctl enable subio-ssh >/dev/null 2>&1
 systemctl restart subio-ssh >/dev/null 2>&1
 EOF
     sshpass -p "$new_pass" scp -o StrictHostKeyChecking=no -P $s_ssh_port /tmp/bootstrap_subio.sh root@$new_ip:/tmp/bootstrap_subio.sh
@@ -122,7 +123,7 @@ EOF
     # SCP the updated subio-manager.json to the remote server
     sshpass -p "$new_pass" scp -o StrictHostKeyChecking=no -P $s_ssh_port /etc/subio-manager.json root@$new_ip:/etc/subio-manager.json
     # Write the remote server's IP into its current-host.txt and restart manager
-    sshpass -p "$new_pass" ssh -o StrictHostKeyChecking=no -p $s_ssh_port root@$new_ip "echo '$new_ip' > /etc/subio-manager-current-host.txt && source /opt/subio/lib/common.sh && source /opt/subio/lib/setup_services.sh && install_python_scripts >/dev/null 2>&1 && install_systemd_services >/dev/null 2>&1 && systemctl restart subio-manager"
+    sshpass -p "$new_pass" ssh -o StrictHostKeyChecking=no -p $s_ssh_port root@$new_ip "echo '$new_ip' > /etc/subio-manager-current-host.txt && source /opt/subio/lib/common.sh && source /opt/subio/lib/setup_services.sh && install_python_scripts >/dev/null 2>&1 && install_systemd_services >/dev/null 2>&1 && systemctl enable subio-manager >/dev/null 2>&1 && systemctl restart subio-manager"
     
     systemctl restart $SERVICE_NAME
     echo -e "${GREEN}Deployment complete! The new server '$s_name' is now fully configured and connected.${NC}"
