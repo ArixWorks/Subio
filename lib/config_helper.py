@@ -151,6 +151,103 @@ def list_nodes(ping=False):
         print(f"  - {h['name']} ({h['ipv4']}) {status}")
     print("")
 
+def is_foreign(name):
+    config = load_config()
+    if not config:
+        print("False")
+        return
+    for h in config[0].get("foreign_hosts", []):
+        if h["name"] == name:
+            print("True")
+            return
+    print("False")
+
+def get_port(name):
+    config = load_config()
+    if not config:
+        print("2222")
+        return
+    for h in config[0].get("foreign_hosts", []) + config[0].get("domestic_hosts", []):
+        if h["name"] == name:
+            print(str(h.get("subio_port", 2222)))
+            return
+    print("2222")
+
+def edit_node_ip(name, new_ip, new_key):
+    config = load_config()
+    if not config:
+        print("Error: Config not initialized.")
+        return
+    cluster = config[0]
+    
+    # Check domestic
+    for h in cluster.get("domestic_hosts", []):
+        if h["name"] == name:
+            h["ipv4"] = new_ip
+            if new_key:
+                h["hostkey_ed25519_ssh"] = new_key
+                h["hostkey_ed25519_hpn"] = new_key
+            save_config(config)
+            print(f"Node {name} IP updated to {new_ip}.")
+            return
+            
+    # Check foreign
+    for h in cluster.get("foreign_hosts", []):
+        if h["name"] == name:
+            h["ipv4"] = new_ip
+            if new_key:
+                h["hostkey_ed25519_ssh"] = new_key
+                h["hostkey_ed25519_hpn"] = new_key
+            save_config(config)
+            print(f"Node {name} IP updated to {new_ip}.")
+            return
+            
+    print(f"Error: Node {name} not found.")
+
+def batch_update_iran_ip(new_ip):
+    config = load_config()
+    if not config:
+        print("Error: Config not initialized.")
+        return
+    cluster = config[0]
+    
+    # Update locally first
+    for d in cluster.get("domestic_hosts", []):
+        d["ipv4"] = new_ip
+    save_config(config)
+    print(f"Local Iran IP updated to {new_ip}.")
+    
+    foreign_hosts = cluster.get("foreign_hosts", [])
+    if not foreign_hosts:
+        print("No foreign hosts to update.")
+        return
+        
+    print(f"\nPushing new IP {new_ip} to all foreign servers...")
+    import subprocess
+    for h in foreign_hosts:
+        ip = h["ipv4"]
+        port = h.get("subio_port", 2222)
+        name = h["name"]
+        print(f"Updating {name} ({ip})...", end="", flush=True)
+        
+        remote_cmd = f"python3 -c \"import json; c=json.load(open('/etc/subio-manager.json')); dom=c[0].get('domestic_hosts',[]); [d.update({{'ipv4':'{new_ip}'}}) for d in dom]; json.dump(c, open('/etc/subio-manager.json','w'), indent=4)\" && systemctl restart subio-manager.service"
+        
+        ssh_cmd = [
+            "/opt/subio-ssh/bin/hpnssh",
+            "-p", str(port),
+            "-i", "/root/.ssh/tunnel_key",
+            "-o", "StrictHostKeyChecking=no",
+            "-o", "ConnectTimeout=15",
+            f"root@{ip}",
+            remote_cmd
+        ]
+        
+        result = subprocess.run(ssh_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if result.returncode == 0:
+            print(f" [\033[0;32mOK\033[0m]")
+        else:
+            print(f" [\033[0;31mFAILED\033[0m]")
+
 def main():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command")
@@ -173,6 +270,20 @@ def main():
     list_parser = subparsers.add_parser("list-nodes")
     list_ping_parser = subparsers.add_parser("list-nodes-ping")
     
+    is_foreign_parser = subparsers.add_parser("is-foreign")
+    is_foreign_parser.add_argument("--name", required=True)
+    
+    get_port_parser = subparsers.add_parser("get-port")
+    get_port_parser.add_argument("--name", required=True)
+    
+    edit_parser = subparsers.add_parser("edit-node-ip")
+    edit_parser.add_argument("--name", required=True)
+    edit_parser.add_argument("--new-ip", required=True)
+    edit_parser.add_argument("--new-key", default="")
+    
+    batch_parser = subparsers.add_parser("batch-update-iran-ip")
+    batch_parser.add_argument("--new-ip", required=True)
+    
     args = parser.parse_args()
     
     if args.command == "init":
@@ -185,6 +296,14 @@ def main():
         list_nodes(ping=False)
     elif args.command == "list-nodes-ping":
         list_nodes(ping=True)
+    elif args.command == "is-foreign":
+        is_foreign(args.name)
+    elif args.command == "get-port":
+        get_port(args.name)
+    elif args.command == "edit-node-ip":
+        edit_node_ip(args.name, args.new_ip, getattr(args, 'new_key', ""))
+    elif args.command == "batch-update-iran-ip":
+        batch_update_iran_ip(args.new_ip)
 
 if __name__ == "__main__":
     main()

@@ -165,8 +165,10 @@ function manage_nodes() {
     echo "1. Add new Server (Iran or Foreign)"
     echo "2. Remove Server"
     echo "3. List all configured Servers"
+    echo "4. Edit Server IP"
+    echo "5. Batch Update Iran IP on all Foreign Servers"
     echo "0. Back to Main Menu"
-    read -p "Select [0-3]: " node_choice
+    read -p "Select [0-5]: " node_choice
     
     if [[ "$node_choice" == "1" ]]; then
         echo -e "${CYAN}What type of server are you adding?${NC}"
@@ -241,6 +243,42 @@ function manage_nodes() {
     elif [[ "$node_choice" == "3" ]]; then
         echo -e "${CYAN}Available Nodes:${NC}"
         python3 $SUBIO_DIR/lib/config_helper.py list-nodes-ping
+        read -p "Press Enter to continue..."
+    elif [[ "$node_choice" == "4" ]]; then
+        echo -e "${CYAN}Available Nodes:${NC}"
+        python3 $SUBIO_DIR/lib/config_helper.py list-nodes
+        read_ascii "Enter the Name of the server to edit" s_name ""
+        if [ -n "$s_name" ]; then
+            read_ascii "Enter the NEW IP address" new_ip ""
+            is_foreign=$(python3 $SUBIO_DIR/lib/config_helper.py is-foreign --name "$s_name")
+            local new_key=""
+            if [[ "$is_foreign" == "True" ]]; then
+                local s_subio_port=$(python3 $SUBIO_DIR/lib/config_helper.py get-port --name "$s_name")
+                echo -e "${YELLOW}Fetching new Host Key for $new_ip:$s_subio_port...${NC}"
+                ssh-keyscan -p $s_subio_port $new_ip 2>/dev/null | grep ssh-ed25519 | awk '{print $3}' | head -n1 > /tmp/ssh_key_result.txt &
+                local ssh_pid=$!
+                show_spinner $ssh_pid
+                wait $ssh_pid
+                new_key=$(cat /tmp/ssh_key_result.txt 2>/dev/null)
+                if [ -z "$new_key" ]; then
+                    echo -e "${RED}Failed to fetch Host Key from $new_ip:$s_subio_port. Aborting edit.${NC}"
+                    read -p "Press Enter to continue..."
+                    return
+                fi
+                echo -e "${GREEN}Successfully fetched new key!${NC}"
+            fi
+            python3 $SUBIO_DIR/lib/config_helper.py edit-node-ip --name "$s_name" --new-ip "$new_ip" --new-key "$new_key"
+            systemctl restart $SERVICE_NAME
+        fi
+        read -p "Press Enter to continue..."
+    elif [[ "$node_choice" == "5" ]]; then
+        echo -e "${CYAN}This tool will push your new Iran IP to all Foreign servers.${NC}"
+        read_ascii "Enter your NEW Iran IP address" new_iran_ip ""
+        if [ -n "$new_iran_ip" ]; then
+            python3 $SUBIO_DIR/lib/config_helper.py batch-update-iran-ip --new-ip "$new_iran_ip"
+            systemctl restart $SERVICE_NAME
+            echo -e "${GREEN}Batch update complete!${NC}"
+        fi
         read -p "Press Enter to continue..."
     fi
 }
