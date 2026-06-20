@@ -238,6 +238,8 @@ def batch_update_iran_ip(new_ip):
             "-i", "/root/.ssh/tunnel_key",
             "-o", "StrictHostKeyChecking=no",
             "-o", "ConnectTimeout=15",
+            "-o", "BatchMode=yes",
+            "-o", "PasswordAuthentication=no",
             f"root@{ip}",
             remote_cmd
         ]
