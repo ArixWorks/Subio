@@ -180,25 +180,38 @@ def edit_node_ip(name, new_ip, new_key):
         return
     cluster = config[0]
     
+    def update_current_host_txt(old_ip, new_ip):
+        try:
+            with open("/etc/subio-manager-current-host.txt", "r") as f:
+                if f.read().strip() == old_ip:
+                    with open("/etc/subio-manager-current-host.txt", "w") as wf:
+                        wf.write(new_ip)
+        except:
+            pass
+
     # Check domestic
     for h in cluster.get("domestic_hosts", []):
         if h["name"] == name:
+            old_ip = h.get("ipv4", "")
             h["ipv4"] = new_ip
             if new_key:
                 h["hostkey_ed25519_ssh"] = new_key
                 h["hostkey_ed25519_hpn"] = new_key
             save_config(config)
+            update_current_host_txt(old_ip, new_ip)
             print(f"Node {name} IP updated to {new_ip}.")
             return
             
     # Check foreign
     for h in cluster.get("foreign_hosts", []):
         if h["name"] == name:
+            old_ip = h.get("ipv4", "")
             h["ipv4"] = new_ip
             if new_key:
                 h["hostkey_ed25519_ssh"] = new_key
                 h["hostkey_ed25519_hpn"] = new_key
             save_config(config)
+            update_current_host_txt(old_ip, new_ip)
             print(f"Node {name} IP updated to {new_ip}.")
             return
             
@@ -211,11 +224,21 @@ def batch_update_iran_ip(new_ip):
         return
     cluster = config[0]
     
+    old_ips = [d.get("ipv4") for d in cluster.get("domestic_hosts", [])]
+    
     # Update locally first
     for d in cluster.get("domestic_hosts", []):
         d["ipv4"] = new_ip
     save_config(config)
     print(f"Local Iran IP updated to {new_ip}.")
+    
+    try:
+        with open("/etc/subio-manager-current-host.txt", "r") as f:
+            if f.read().strip() in old_ips:
+                with open("/etc/subio-manager-current-host.txt", "w") as wf:
+                    wf.write(new_ip)
+    except:
+        pass
     
     foreign_hosts = cluster.get("foreign_hosts", [])
     if not foreign_hosts:
