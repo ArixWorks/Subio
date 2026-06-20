@@ -17,6 +17,10 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
+if [[ -f "$SUBIO_DIR/lib/auto_deploy.sh" ]]; then
+    source "$SUBIO_DIR/lib/auto_deploy.sh"
+fi
+
 function read_ascii() {
     local prompt="$1"
     local var_name="$2"
@@ -167,8 +171,9 @@ function manage_nodes() {
     echo "3. List all configured Servers"
     echo "4. Edit Server IP"
     echo "5. Batch Update Iran IP on all Foreign Servers"
+    echo "6. Auto-Deploy to New Foreign Server (Zero-Touch)"
     echo "0. Back to Main Menu"
-    read -p "Select [0-5]: " node_choice
+    read -p "Select [0-6]: " node_choice
     
     if [[ "$node_choice" == "1" ]]; then
         echo -e "${CYAN}What type of server are you adding?${NC}"
@@ -280,6 +285,8 @@ function manage_nodes() {
             echo -e "${GREEN}Batch update complete!${NC}"
         fi
         read -p "Press Enter to continue..."
+    elif [[ "$node_choice" == "6" ]]; then
+        auto_deploy_foreign
     fi
 }
 
