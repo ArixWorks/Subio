@@ -97,7 +97,7 @@ install_prerequisites >/dev/null 2>&1
 install_subio_ssh >/dev/null 2>&1
 source lib/configure_tunnel.sh
 export HPN_PORT=2222
-setup_sshd_config >/dev/null 2>&1
+configure_subio_ssh_daemon >/dev/null 2>&1
 systemctl enable subio-ssh >/dev/null 2>&1
 systemctl restart subio-ssh >/dev/null 2>&1
 EOF
