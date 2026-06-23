@@ -70,6 +70,7 @@ function show_header() {
     echo -e "${CYAN}│  11. View Logs (SubIO & Connection Logs)       │${NC}"
     echo -e "${CYAN}│────────────────────────────────────────────────│${NC}"
     echo -e "${CYAN}│  12. Speed Test & Connection Check             │${NC}"
+    echo -e "${CYAN}│  13. Toggle Autostart (Enable/Disable)         │${NC}"
     echo -e "${CYAN}╚────────────────────────────────────────────────╝${NC}"
     echo ""
     show_status_footer
@@ -369,10 +370,28 @@ function uninstall_subio() {
     exit 0
 }
 
+function toggle_autostart() {
+    echo -e "${CYAN}--- Toggle Autostart ---${NC}"
+    if systemctl is-enabled --quiet $SERVICE_NAME 2>/dev/null; then
+        echo -e "${YELLOW}Currently Autostart is ENABLED. Disabling...${NC}"
+        systemctl disable subio-ssh.service subio-manager.service subio-lane-guard.service 2>/dev/null
+        echo -e "${GREEN}Autostart Disabled. SubIO will NOT start automatically on boot.${NC}"
+    else
+        echo -e "${YELLOW}Currently Autostart is DISABLED. Enabling...${NC}"
+        systemctl enable subio-ssh.service subio-manager.service 2>/dev/null
+        # Enable lane guard if it exists
+        if [ -f /etc/systemd/system/subio-lane-guard.service ]; then
+            systemctl enable subio-lane-guard.service 2>/dev/null
+        fi
+        echo -e "${GREEN}Autostart Enabled. SubIO will start automatically on boot.${NC}"
+    fi
+    read -p "Press Enter to return to main menu..."
+}
+
 function menu() {
     while true; do
         show_header
-        read -p "Please enter your selection [0-12]: " choice
+        read -p "Please enter your selection [0-13]: " choice
         case $choice in
             0) exit 0 ;;
             1) initial_setup ;;
@@ -387,6 +406,7 @@ function menu() {
             10) check_status ;;
             11) view_logs ;;
             12) speed_test ;;
+            13) toggle_autostart ;;
             *) echo -e "${RED}Invalid selection${NC}"; sleep 1 ;;
         esac
     done
