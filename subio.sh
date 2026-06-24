@@ -388,6 +388,45 @@ function toggle_autostart() {
     read -p "Press Enter to return to main menu..."
 }
 
+function update_subio() {
+    echo -e "${YELLOW}Updating Local SubIO...${NC}"
+    bash <(curl -Ls https://raw.githubusercontent.com/ArixWorks/Subio/main/install.sh)
+    
+    echo ""
+    read -p "Do you also want to push this update to ALL configured foreign servers? [y/N]: " push_update
+    if [[ "$push_update" =~ ^[Yy]$ ]]; then
+        echo -e "${CYAN}--- Batch Update Foreign Servers ---${NC}"
+        local foreign_nodes=$(python3 -c "
+import json
+try:
+    c = json.load(open('/etc/subio-manager.json'))[0]
+    for h in c.get('foreign_hosts', []):
+        print(f\"{h['name']}|{h['ipv4']}|{h.get('ssh_port', 22)}\")
+except:
+    pass
+")
+        if [ -z "$foreign_nodes" ]; then
+            echo -e "${YELLOW}No foreign servers configured.${NC}"
+        else
+            for node in $foreign_nodes; do
+                local name=$(echo "$node" | cut -d'|' -f1)
+                local ip=$(echo "$node" | cut -d'|' -f2)
+                local port=$(echo "$node" | cut -d'|' -f3)
+                
+                echo -n "Updating $name ($ip:$port)... "
+                ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 -i /root/.ssh/tunnel_key -p "$port" root@"$ip" "export DEBIAN_FRONTEND=noninteractive && curl -sL https://raw.githubusercontent.com/ArixWorks/Subio/main/install.sh | bash" >/dev/null 2>&1
+                if [ $? -eq 0 ]; then
+                    echo -e "${GREEN}[OK]${NC}"
+                else
+                    echo -e "${RED}[FAILED]${NC}"
+                fi
+            done
+            echo -e "${GREEN}Batch update complete!${NC}"
+        fi
+    fi
+    read -p "Press Enter to return to main menu..."
+}
+
 function menu() {
     while true; do
         show_header
@@ -395,7 +434,7 @@ function menu() {
         case $choice in
             0) exit 0 ;;
             1) initial_setup ;;
-            2) bash <(curl -Ls https://raw.githubusercontent.com/ArixWorks/Subio/main/install.sh); read -p "Press Enter..." ;;
+            2) update_subio ;;
             3) uninstall_subio ;;
             4) manage_nodes ;;
             5) key_management ;;
