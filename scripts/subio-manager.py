@@ -1191,8 +1191,22 @@ def build_tunnel_specs(
                 raise ConfigError(
                     f"{CONFIG_FILE}: cluster {cluster.name} missing foreign_to_domestic ports for site {site}"
                 )
+            
+            foreign_hosts_in_site = [h for h in cluster.foreign_hosts if h.site == site]
+            try:
+                host_idx = foreign_hosts_in_site.index(current_host.host)
+            except ValueError:
+                host_idx = 0
+                
+            if host_idx < len(ports):
+                my_ports = [ports[host_idx]]
+            else:
+                log(f"[manager] WARNING: not enough ports configured for site {site}. "
+                    f"Host {current_host.host.name} (index {host_idx}) gets no port.")
+                my_ports = []
+                
             for target in cluster.domestic_hosts:
-                for port in ports:
+                for port in my_ports:
                     spec = TunnelSpec(
                         cluster_name=cluster.name,
                         direction="foreign_to_domestic",
@@ -1216,7 +1230,19 @@ def build_tunnel_specs(
                 ports = cluster.domestic_to_foreign_ports_by_site.get(site)
                 if not ports:
                     continue
-                for port in ports:
+                    
+                foreign_hosts_in_site = [h for h in cluster.foreign_hosts if h.site == site]
+                try:
+                    host_idx = foreign_hosts_in_site.index(target)
+                except ValueError:
+                    host_idx = 0
+                    
+                if host_idx < len(ports):
+                    my_ports = [ports[host_idx]]
+                else:
+                    my_ports = []
+                    
+                for port in my_ports:
                     spec = TunnelSpec(
                         cluster_name=cluster.name,
                         direction="domestic_to_foreign",
