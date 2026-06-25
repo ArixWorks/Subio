@@ -46,7 +46,7 @@ check_hpn_port_listening() {
 }
 
 check_socks_ports() {
-    log_step "SOCKS Proxy Status"
+    log_step "Connection Status"
 
     local config_file="/etc/subio-manager.json"
     if [[ ! -f "$config_file" ]]; then
@@ -54,80 +54,162 @@ check_socks_ports() {
         return 1
     fi
 
-    # Extract all unique ports from the config
-    local ports
-    ports=$(python3 -c "
-import json
-with open('${config_file}') as f:
-    config = json.load(f)
-clusters = config if isinstance(config, list) else config.get('clusters', [])
-ports = set()
-for c in clusters:
-    for site, ps in c.get('foreign_to_domestic_ports_by_site', {}).items():
-        if isinstance(ps, list):
-            for p in ps:
-                ports.add((site, int(p)))
-        else:
-            ports.add((site, int(ps)))
-for site, port in sorted(ports, key=lambda x: x[1]):
-    print(f'{site}:{port}')
+    local parsed_role_data
+    parsed_role_data=$(python3 -c "
+import json, socket, os, subprocess
+
+try:
+    with open('/etc/subio-manager.json') as f:
+        config = json.load(f)
+    cluster = config[0] if isinstance(config, list) else config.get('clusters', [])[0]
+    
+    token = ''
+    if os.path.exists('/etc/subio-manager-current-host.txt'):
+        with open('/etc/subio-manager-current-host.txt') as f:
+            token = f.read().strip()
+            
+    if not token and os.path.exists('/etc/subio-manager-manual-ipv4.txt'):
+        with open('/etc/subio-manager-manual-ipv4.txt') as f:
+            token = f.read().strip()
+            
+    role = 'unknown'
+    for h in cluster.get('domestic_hosts', []):
+        if token and token in (h['name'], h['ipv4']):
+            role = 'domestic'
+            break
+    if role == 'unknown':
+        for h in cluster.get('foreign_hosts', []):
+            if token and token in (h['name'], h['ipv4']):
+                role = 'foreign'
+                break
+                
+    if role == 'unknown':
+        try:
+            ip_out = subprocess.check_output(['ip', '-4', 'addr', 'show'], text=True)
+            for h in cluster.get('domestic_hosts', []):
+                if h['ipv4'] in ip_out:
+                    role = 'domestic'
+                    break
+            if role == 'unknown':
+                for h in cluster.get('foreign_hosts', []):
+                    if h['ipv4'] in ip_out:
+                        role = 'foreign'
+                        break
+        except:
+            pass
+
+    print(f'DETECTED_ROLE=\"{role}\"')
+
+    if role == 'domestic' or role == 'unknown':
+        ports = set()
+        for site, ps in cluster.get('foreign_to_domestic_ports_by_site', {}).items():
+            if isinstance(ps, list):
+                for p in ps: ports.add((site, int(p)))
+            else:
+                ports.add((site, int(ps)))
+        ports_str = '\n'.join([f'{s}:{p}' for s, p in sorted(ports, key=lambda x: x[1])])
+        print(f'DOMESTIC_PORTS=\"{ports_str}\"')
+    elif role == 'foreign':
+        targets = []
+        for h in cluster.get('domestic_hosts', []):
+            targets.append(f\"{h['name']}:{h['ipv4']}:{h.get('hpn_port', 2222)}\")
+        targets_str = '\n'.join(targets)
+        print(f'FOREIGN_TARGETS=\"{targets_str}\"')
+
+except Exception as e:
+    print('DETECTED_ROLE=\"unknown\"')
 " 2>/dev/null)
 
-    if [[ -z "$ports" ]]; then
-        log_warn "No SOCKS ports found in config"
-        return 1
-    fi
-
+    eval "$parsed_role_data"
     local all_ok=true
-    echo ""
-    echo -e "  ${BOLD}${CYAN}Site    Port    Status          Egress IP${NC}"
-    echo -e "  ${DIM}──────  ──────  ──────────────  ─────────────────${NC}"
 
-    while IFS=: read -r site port; do
-        local status="DOWN"
-        local egress_ip="-"
-        local color="$RED"
+    if [[ "$DETECTED_ROLE" == "foreign" ]]; then
+        echo ""
+        echo -e "  ${BOLD}${CYAN}Target    IP Address       Port    Status${NC}"
+        echo -e "  ${DIM}──────    ──────────────   ──────  ──────────────${NC}"
 
-        # Check if port is listening
-        if ss -tlnp 2>/dev/null | grep -q ":${port} " || \
-           netstat -tlnp 2>/dev/null | grep -q ":${port} "; then
+        while IFS=: read -r target_name target_ip target_port; do
+            [[ -z "$target_name" ]] && continue
+            local status="DOWN"
+            local color="$RED"
 
-            # Test SOCKS proxy egress
-            if command -v curl &>/dev/null; then
-                egress_ip=$(curl -s --connect-timeout 5 --max-time 10 \
-                    --proxy "socks5h://127.0.0.1:${port}" \
-                    "https://api.ipify.org" 2>/dev/null || echo "")
-                if [[ -n "$egress_ip" && "$egress_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-                    status="CONNECTED"
-                    color="$GREEN"
+            # Check for ESTABLISHED connection to target_ip:target_port
+            if ss -tnp 2>/dev/null | grep "ESTAB" | grep -q "${target_ip}:${target_port}"; then
+                status="CONNECTED"
+                color="$GREEN"
+            else
+                all_ok=false
+            fi
+
+            printf "  ${color}%-10s${NC}%-17s%-8s${color}%-16s${NC}\n" \
+                "$target_name" "$target_ip" "$target_port" "$status"
+        done <<< "$FOREIGN_TARGETS"
+        
+        echo ""
+        if $all_ok; then
+            log_ok "All tunnels to Iran servers are CONNECTED!"
+        else
+            log_warn "Some tunnels are not connected."
+            log_sub "Check 'journalctl -u subio-manager -f' for logs"
+        fi
+        
+    else
+        # Domestic / Default logic
+        if [[ -z "$DOMESTIC_PORTS" ]]; then
+            log_warn "No SOCKS ports found in config"
+            return 1
+        fi
+
+        echo ""
+        echo -e "  ${BOLD}${CYAN}Site    Port    Status          Egress IP${NC}"
+        echo -e "  ${DIM}──────  ──────  ──────────────  ─────────────────${NC}"
+
+        while IFS=: read -r site port; do
+            [[ -z "$site" ]] && continue
+            local status="DOWN"
+            local egress_ip="-"
+            local color="$RED"
+
+            # Check if port is listening
+            if ss -tlnp 2>/dev/null | grep -q ":${port} " || \
+               netstat -tlnp 2>/dev/null | grep -q ":${port} "; then
+
+                # Test SOCKS proxy egress
+                if command -v curl &>/dev/null; then
+                    egress_ip=$(curl -s --connect-timeout 5 --max-time 10 \
+                        --proxy "socks5h://127.0.0.1:${port}" \
+                        "https://api.ipify.org" 2>/dev/null || echo "")
+                    if [[ -n "$egress_ip" && "$egress_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                        status="CONNECTED"
+                        color="$GREEN"
+                    else
+                        status="LISTENING"
+                        color="$YELLOW"
+                        egress_ip="(no egress)"
+                        all_ok=false
+                    fi
                 else
                     status="LISTENING"
                     color="$YELLOW"
-                    egress_ip="(no egress)"
-                    all_ok=false
+                    egress_ip="(curl n/a)"
                 fi
             else
-                status="LISTENING"
-                color="$YELLOW"
-                egress_ip="(curl n/a)"
+                all_ok=false
             fi
+
+            printf "  ${color}%-8s${NC}%-8s${color}%-16s${NC}%s\n" \
+                "$site" "$port" "$status" "$egress_ip"
+
+        done <<< "$DOMESTIC_PORTS"
+
+        echo ""
+        if $all_ok; then
+            log_ok "All SOCKS tunnels are connected and working!"
         else
-            all_ok=false
+            log_warn "Some tunnels are not fully connected yet."
+            log_sub "On Iran server: wait for the foreign server to connect"
+            log_sub "On foreign server: check 'journalctl -u subio-manager -f'"
         fi
-
-        printf "  ${color}%-8s${NC}%-8s${color}%-16s${NC}%s\n" \
-            "$site" "$port" "$status" "$egress_ip"
-
-    done <<< "$ports"
-
-    echo ""
-
-    if $all_ok; then
-        log_ok "All SOCKS tunnels are connected and working!"
-    else
-        log_warn "Some tunnels are not fully connected yet."
-        log_sub "On Iran server: wait for the foreign server to connect"
-        log_sub "On foreign server: check 'journalctl -u subio-manager -f'"
     fi
 }
 
