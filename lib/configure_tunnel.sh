@@ -106,12 +106,19 @@ configure_subio_ssh_daemon() {
         if [[ "${HPN_PORT:-2222}" != "2222" ]]; then
             sed -i "s/^Port 2222/Port ${HPN_PORT}/" "${SUBIO_SSH_CONFIG_DIR}/sshd_config"
         fi
+        
+        # Ensure PidFile is set to avoid conflict with system sshd
+        if ! grep -q "^PidFile" "${SUBIO_SSH_CONFIG_DIR}/sshd_config"; then
+            echo "PidFile /var/run/hpnsshd.pid" >> "${SUBIO_SSH_CONFIG_DIR}/sshd_config"
+        fi
+        
         log_ok "SUBIO-SSH daemon configured on port ${HPN_PORT:-2222}"
     else
         log_warn "Template not found at ${template}, using defaults"
         backup_file "${SUBIO_SSH_CONFIG_DIR}/sshd_config"
         cat <<EOF > "${SUBIO_SSH_CONFIG_DIR}/sshd_config"
 Port ${HPN_PORT:-2222}
+PidFile /var/run/hpnsshd.pid
 PermitRootLogin yes
 PasswordAuthentication yes
 X11Forwarding no

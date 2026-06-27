@@ -6,6 +6,7 @@
 Include /etc/subio-ssh/sshd_config.d/*.conf
 
 Port 2222
+PidFile /var/run/hpnsshd.pid
 
 # Authentication
 PermitRootLogin prohibit-password
